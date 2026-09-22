@@ -41,7 +41,13 @@ export async function login(formData: FormData) {
 
 export async function logout() {
   const jar = await cookies();
-  jar.delete(sessionCookieName());
+  jar.set(sessionCookieName(), "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
   redirect("/acceso");
 }
 
