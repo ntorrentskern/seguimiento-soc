@@ -11,6 +11,7 @@ import {
   vigilanciaFindings,
   vigilanciaSnapshots,
   vulnerabilities,
+  portfolioItems,
 } from "@/db/schema";
 import { asSeverity, withMonthsOpen } from "@/lib/metrics";
 import type {
@@ -22,6 +23,7 @@ import type {
   FindingKind,
   FindingView,
   LoadResult,
+  PortfolioItemView,
   Severity,
   SocMetrics,
   SocView,
@@ -46,6 +48,10 @@ const emptyMetrics = (): SocMetrics => ({
   vulnsOpened: null,
   vulnsClosed: null,
   vulnsOpen: null,
+  risksOpen: null,
+  risksCritical: null,
+  risksVeryHigh: null,
+  improvementsOpen: null,
 });
 
 const emptyVigilancia = (): VigilanciaMetrics => ({
@@ -74,13 +80,14 @@ export const loadSoc = cache(async (): Promise<LoadResult<SocView[]>> => {
     if (reportRows.length === 0) return { status: "empty" };
 
     const ids = reportRows.map((report) => report.id);
-    const [snapshotRows, categoryRows, caseRows, vulnRows, actionRows] =
+    const [snapshotRows, categoryRows, caseRows, vulnRows, actionRows, portfolioRows] =
       await Promise.all([
         db.select().from(socSnapshots).where(inArray(socSnapshots.reportId, ids)),
         db.select().from(alertCategories).where(inArray(alertCategories.reportId, ids)),
         db.select().from(cases).where(inArray(cases.reportId, ids)),
         db.select().from(vulnerabilities).where(inArray(vulnerabilities.reportId, ids)),
         db.select().from(actions).where(inArray(actions.reportId, ids)),
+        db.select().from(portfolioItems).where(inArray(portfolioItems.reportId, ids)),
       ]);
 
     const views: SocView[] = reportRows.map((report) => {
@@ -110,6 +117,10 @@ export const loadSoc = cache(async (): Promise<LoadResult<SocView[]>> => {
               vulnsOpened: snapshot.vulnsOpened,
               vulnsClosed: snapshot.vulnsClosed,
               vulnsOpen: asSeverity(snapshot.vulnsOpen),
+              risksOpen: snapshot.risksOpen,
+              risksCritical: snapshot.risksCritical,
+              risksVeryHigh: snapshot.risksVeryHigh,
+              improvementsOpen: snapshot.improvementsOpen,
             }
           : emptyMetrics(),
         categories: categoryRows
@@ -124,7 +135,11 @@ export const loadSoc = cache(async (): Promise<LoadResult<SocView[]>> => {
           .map(toCase),
         vulnerabilities: vulnRows
           .filter((row) => row.reportId === report.id)
+          .filter((row) => row.fingerprint !== "riesgos-historico-criticos")
           .map(toVuln),
+        portfolio: portfolioRows
+          .filter((row) => row.reportId === report.id)
+          .map(toPortfolio),
         actions: actionRows
           .filter((row) => row.reportId === report.id)
           .map(toAction),
@@ -234,6 +249,17 @@ function toVuln(row: typeof vulnerabilities.$inferSelect): VulnView {
     ageDays: row.ageDays,
     action: row.action,
     monthsOpen: 0,
+  };
+}
+
+function toPortfolio(row: typeof portfolioItems.$inferSelect): PortfolioItemView {
+  return {
+    id: row.id,
+    kind: row.kind === "improvement" ? "improvement" : "risk",
+    title: row.title,
+    severity: row.severity,
+    status: row.status === "resolved" ? "resolved" : "open",
+    detail: row.detail,
   };
 }
 

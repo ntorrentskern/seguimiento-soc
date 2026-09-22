@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { VulnTable } from "@/components/records";
 import { DataState, PageHeader, Section } from "@/components/ui";
 import { loadSoc } from "@/db/queries";
-import { formatInt } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Vulnerabilidades" };
 
@@ -15,16 +14,10 @@ export default async function VulnerabilitiesPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Vulnerabilidades"
-        title="Lo que sigue abierto"
-        description="El listado es el del último informe, cruzado con los meses anteriores para ver cuánto lleva cada hallazgo sin cerrar. El volumen por severidad sale del agregado del informe; aquí solo entran las que merecen seguimiento."
-      />
+      <PageHeader title="Vulnerabilidades" />
       {latest ? (
         <>
-          <p className="mb-6 text-sm text-muted">
-            Corte de {latest.label}. Críticas abiertas: {formatInt(latest.metrics.vulnsOpen?.critical ?? null)}. Altas abiertas: {formatInt(latest.metrics.vulnsOpen?.high ?? null)}.
-          </p>
+          <p className="mb-6 text-sm text-faint">{latest.label}</p>
           <Section title="Abiertas">
             <VulnTable items={open} showMonths />
           </Section>
@@ -40,13 +33,7 @@ export default async function VulnerabilitiesPage() {
           ) : null}
         </>
       ) : (
-        <DataState title="Sin inventario todavía">
-          {soc.status === "unconfigured"
-            ? "Conecta Neon para guardar el inventario."
-            : soc.status === "error"
-              ? "No se ha podido leer la base de datos."
-              : "Cuando haya un informe cargado, verás qué vulnerabilidades siguen abiertas y desde qué mes."}
-        </DataState>
+        <DataState title={soc.status === "empty" ? "Sin vulnerabilidades" : "Sin conexión con la base de datos"} />
       )}
     </>
   );

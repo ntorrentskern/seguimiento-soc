@@ -14,19 +14,9 @@ export default async function VigilanciaPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Vigilancia digital"
-        title="Entorno digital de Kern"
-        description="Suplantación de webs, dominios parecidos, retiradas, credenciales filtradas y reputación. Cuando lleguen los informes, se guardará el movimiento del mes y los hallazgos concretos."
-      />
+      <PageHeader title="Vigilancia digital" />
       {!latest ? (
-        <DataState title="Esperando el primer informe">
-          {result.status === "unconfigured"
-            ? "La estructura ya está en la base de datos. Falta enlazar Neon para guardar los informes."
-            : result.status === "error"
-              ? "No se ha podido leer la base de datos."
-              : "Todavía no hay informes de vigilancia digital. El SOC puede cargarse antes; este apartado se llenará aparte, sin el texto de servicio que se repite cada mes."}
-        </DataState>
+        <DataState title={result.status === "empty" ? "Sin informes" : "Sin conexión con la base de datos"} />
       ) : (
         <>
           <p className="mb-2 text-xs text-faint">

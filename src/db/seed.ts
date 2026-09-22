@@ -6,6 +6,7 @@ import {
   actions,
   alertCategories,
   cases,
+  portfolioItems,
   reports,
   socSnapshots,
   users,
@@ -47,6 +48,10 @@ type SocImport = {
     vulnsOpened?: number | null;
     vulnsClosed?: number | null;
     vulnsOpen?: SeverityCounts | null;
+    risksOpen?: number | null;
+    risksCritical?: number | null;
+    risksVeryHigh?: number | null;
+    improvementsOpen?: number | null;
   };
   categories?: { name: string; generated: number; escalated: number }[];
   cases?: {
@@ -73,6 +78,14 @@ type SocImport = {
     status: string;
     ageDays?: number | null;
     action?: string | null;
+  }[];
+  portfolio?: {
+    id?: string;
+    kind: string;
+    title: string;
+    severity?: string | null;
+    status: string;
+    detail?: string | null;
   }[];
   actions?: ActionImport[];
 };
@@ -138,6 +151,7 @@ async function main() {
     await db.delete(alertCategories).where(eq(alertCategories.reportId, report.id));
     await db.delete(cases).where(eq(cases.reportId, report.id));
     await db.delete(vulnerabilities).where(eq(vulnerabilities.reportId, report.id));
+    await db.delete(portfolioItems).where(eq(portfolioItems.reportId, report.id));
     await db.delete(actions).where(eq(actions.reportId, report.id));
     await db.delete(socSnapshots).where(eq(socSnapshots.reportId, report.id));
 
@@ -158,6 +172,10 @@ async function main() {
       vulnsOpened: metrics.vulnsOpened ?? null,
       vulnsClosed: metrics.vulnsClosed ?? null,
       vulnsOpen: metrics.vulnsOpen ?? null,
+      risksOpen: metrics.risksOpen ?? null,
+      risksCritical: metrics.risksCritical ?? null,
+      risksVeryHigh: metrics.risksVeryHigh ?? null,
+      improvementsOpen: metrics.improvementsOpen ?? null,
     });
 
     if (report.categories?.length) {
@@ -205,6 +223,20 @@ async function main() {
           status: item.status,
           ageDays: item.ageDays ?? null,
           action: item.action ?? null,
+        })),
+      );
+    }
+
+    if (report.portfolio?.length) {
+      await db.insert(portfolioItems).values(
+        report.portfolio.map((item, itemIndex) => ({
+          id: item.id ?? `${report.id}-item-${itemIndex + 1}`,
+          reportId: report.id,
+          kind: item.kind,
+          title: item.title,
+          severity: item.severity ?? "",
+          status: item.status,
+          detail: item.detail ?? null,
         })),
       );
     }

@@ -29,6 +29,10 @@ export type SocMetrics = {
   vulnsOpened: number | null;
   vulnsClosed: number | null;
   vulnsOpen: SeverityCounts | null;
+  risksOpen: number | null;
+  risksCritical: number | null;
+  risksVeryHigh: number | null;
+  improvementsOpen: number | null;
 };
 
 export type CategoryView = {
@@ -65,6 +69,18 @@ export type VulnView = {
   monthsOpen: number;
 };
 
+export type PortfolioKind = "risk" | "improvement";
+export type PortfolioStatus = "open" | "resolved";
+
+export type PortfolioItemView = {
+  id: string;
+  kind: PortfolioKind;
+  title: string;
+  severity: string;
+  status: PortfolioStatus;
+  detail: string | null;
+};
+
 export type ActionView = {
   id: string;
   title: string;
@@ -86,6 +102,7 @@ export type SocView = {
   categories: CategoryView[];
   cases: CaseView[];
   vulnerabilities: VulnView[];
+  portfolio: PortfolioItemView[];
   actions: ActionView[];
 };
 

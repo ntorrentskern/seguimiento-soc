@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActionList, CaseList, CategoryBars, VulnTable } from "@/components/records";
+import { ActionList, CaseList, CategoryBars, PortfolioTable, VulnTable } from "@/components/records";
 import { KpiCard, PageHeader, Section } from "@/components/ui";
 import { loadSoc } from "@/db/queries";
 import { delta, formatDate, formatHours, formatInt, formatPct, severityLabel } from "@/lib/format";
@@ -89,12 +89,31 @@ export default async function SocMonthPage({
         <CaseList items={report.cases} />
       </Section>
 
-      <Section title="Vulnerabilidades del mes">
-        <p className="mb-4 text-sm text-muted">
-          Abiertas nuevas: {formatInt(report.metrics.vulnsOpened)}. Cerradas: {formatInt(report.metrics.vulnsClosed)}.
-          Críticas que siguen abiertas: {formatInt(report.metrics.vulnsOpen?.critical ?? null)}.
-        </p>
-        <VulnTable items={report.vulnerabilities} showMonths />
+      {report.vulnerabilities.length > 0 ? (
+        <Section title="Vulnerabilidades">
+          <VulnTable items={report.vulnerabilities} showMonths />
+        </Section>
+      ) : null}
+
+      <Section title="Riesgos y mejoras">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Riesgos" value={formatInt(report.metrics.risksOpen)} />
+          <KpiCard label="Críticos" value={formatInt(report.metrics.risksCritical)} />
+          <KpiCard label="Muy altos" value={formatInt(report.metrics.risksVeryHigh)} />
+          <KpiCard label="Mejoras" value={formatInt(report.metrics.improvementsOpen)} />
+        </div>
+        {report.portfolio.some((item) => item.kind === "risk") ? (
+          <div className="mt-6">
+            <h3 className="mb-3 text-sm font-medium">Riesgos</h3>
+            <PortfolioTable items={report.portfolio.filter((item) => item.kind === "risk")} />
+          </div>
+        ) : null}
+        {report.portfolio.some((item) => item.kind === "improvement") ? (
+          <div className="mt-6">
+            <h3 className="mb-3 text-sm font-medium">Mejoras</h3>
+            <PortfolioTable items={report.portfolio.filter((item) => item.kind === "improvement")} />
+          </div>
+        ) : null}
       </Section>
 
       {report.actions.length > 0 ? (

@@ -49,6 +49,10 @@ export const socSnapshots = pgTable("soc_snapshots", {
   vulnsOpened: integer("vulns_opened"),
   vulnsClosed: integer("vulns_closed"),
   vulnsOpen: jsonb("vulns_open").$type<SeverityCounts>(),
+  risksOpen: integer("risks_open"),
+  risksCritical: integer("risks_critical"),
+  risksVeryHigh: integer("risks_very_high"),
+  improvementsOpen: integer("improvements_open"),
 });
 
 export const alertCategories = pgTable("alert_categories", {
@@ -92,6 +96,18 @@ export const vulnerabilities = pgTable("vulnerabilities", {
   status: text("status").notNull(),
   ageDays: integer("age_days"),
   action: text("action"),
+});
+
+export const portfolioItems = pgTable("portfolio_items", {
+  id: text("id").primaryKey(),
+  reportId: text("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  severity: text("severity").notNull(),
+  status: text("status").notNull(),
+  detail: text("detail"),
 });
 
 export const actions = pgTable("actions", {
@@ -144,6 +160,7 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
   categories: many(alertCategories),
   cases: many(cases),
   vulnerabilities: many(vulnerabilities),
+  portfolio: many(portfolioItems),
   actions: many(actions),
   findings: many(vigilanciaFindings),
 }));

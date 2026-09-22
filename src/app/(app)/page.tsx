@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertChart, VulnChart } from "@/components/charts";
-import { ActionList, CaseList, MonthLink, VulnTable } from "@/components/records";
+import { AlertChart, RiskChart } from "@/components/charts";
+import { ActionList, CaseList, MonthLink, PortfolioTable, VulnTable } from "@/components/records";
 import { DataState, KpiCard, PageHeader, Section } from "@/components/ui";
 import { loadSoc, loadVigilancia } from "@/db/queries";
 import { delta, formatInt, formatPct } from "@/lib/format";
@@ -14,26 +14,21 @@ export default async function PanelPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Kern Pharma"
-        title="Cómo va la seguridad este mes"
-        description="Comparación de los informes mensuales: alertas que de verdad se escalan, ruido, lo que queda sin respuesta y vulnerabilidades que siguen abiertas."
-      />
-      {soc.status === "unconfigured" ? (
-        <DataState title="Falta conectar la base de datos">
-          La aplicación ya puede guardar y comparar los meses. En cuanto Neon esté enlazado al proyecto de Vercel, este panel mostrará la evolución.
+      <PageHeader title="Panel" />
+      {soc.status === "unconfigured" || soc.status === "error" ? (
+        <DataState title="Sin conexión con la base de datos" />
+      ) : null}
+      {soc.status === "empty" ? (
+        <DataState title="Sin informes">
+          <Link href="/registrar" className="text-accent">
+            Registrar mes
+          </Link>
         </DataState>
       ) : null}
-      {soc.status === "error" ? (
-        <DataState title="No se ha podido leer la base de datos">
-          La conexión no ha respondido o el esquema todavía no está creado. Cuando la base esté lista, recarga esta página.
-        </DataState>
-      ) : null}
-      {soc.status === "empty" ? <EmptySoc /> : null}
       {soc.status === "ok" ? <SocBriefing reports={soc.data} /> : null}
 
-      <Section title="Vigilancia digital">
-        {vigilancia.status === "ok" ? (
+      {vigilancia.status === "ok" ? (
+        <Section title="Vigilancia digital">
           <article className="rounded-xl border border-line bg-raised px-4 py-4">
             <p className="text-xs text-faint">{vigilancia.data[0].label}</p>
             <p className="mt-2 text-sm leading-6">{vigilancia.data[0].headline}</p>
@@ -41,21 +36,9 @@ export default async function PanelPage() {
               Ver vigilancia digital
             </Link>
           </article>
-        ) : (
-          <DataState title="Aún sin informes de vigilancia">
-            Este apartado queda listo para suplantación de webs, dominios parecidos, takedowns, credenciales filtradas y reputación. Se cargará cuando lleguen esos informes, solo con los hallazgos que haya que seguir.
-          </DataState>
-        )}
-      </Section>
+        </Section>
+      ) : null}
     </>
-  );
-}
-
-function EmptySoc() {
-  return (
-    <DataState title="Aún no hay informes del SOC">
-      Cuando estén los PDF de los últimos meses, aquí verás la evolución real: alertas generadas, escaladas, falsos positivos, alertas sin respuesta, casos concretos y vulnerabilidades abiertas. No se copia la introducción, la metodología ni las recomendaciones que se repiten en todos los informes.
-    </DataState>
   );
 }
 
@@ -65,16 +48,19 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
   const chronological = [...reports].reverse();
   const openCases = latest.cases.filter((item) => item.status !== "closed");
   const openVulns = latest.vulnerabilities.filter((item) => item.status === "open");
+  const openRisks = latest.portfolio.filter((item) => item.kind === "risk" && item.status === "open");
+  const openImprovements = latest.portfolio.filter(
+    (item) => item.kind === "improvement" && item.status === "open",
+  );
   const pending = latest.actions.filter((item) => item.status !== "done");
-  const fpShare = formatPct(latest.metrics.falsePositives, latest.metrics.alertsGenerated);
   const escalatedShare = formatPct(latest.metrics.alertsEscalated, latest.metrics.alertsGenerated);
 
   return (
     <>
-      <p className="mb-6 max-w-3xl text-base leading-7">
-        <span className="text-faint">{latest.label}. </span>
-        {latest.headline}
-      </p>
+      <p className="mb-6 text-sm text-faint">{latest.label}</p>
+      {latest.headline && latest.headline !== latest.label ? (
+        <p className="mb-6 max-w-3xl text-base leading-7">{latest.headline}</p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Alertas escaladas"
@@ -83,27 +69,28 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
           delta={delta(latest.metrics.alertsEscalated, previous?.metrics.alertsEscalated ?? null)}
         />
         <KpiCard
-          label="Falsos positivos"
-          value={formatInt(latest.metrics.falsePositives)}
-          hint={fpShare ? `${fpShare} de las generadas` : null}
-          delta={delta(latest.metrics.falsePositives, previous?.metrics.falsePositives ?? null)}
-        />
-        <KpiCard
           label="Sin respuesta"
           value={formatInt(latest.metrics.alertsUnanswered)}
           delta={delta(latest.metrics.alertsUnanswered, previous?.metrics.alertsUnanswered ?? null)}
         />
         <KpiCard
-          label="Críticas abiertas"
-          value={formatInt(latest.metrics.vulnsOpen?.critical ?? null)}
-          delta={delta(
-            latest.metrics.vulnsOpen?.critical ?? null,
-            previous?.metrics.vulnsOpen?.critical ?? null,
-          )}
+          label="Riesgos abiertos"
+          value={formatInt(latest.metrics.risksOpen)}
+          hint={
+            latest.metrics.risksCritical != null
+              ? `${formatInt(latest.metrics.risksCritical)} críticos · ${formatInt(latest.metrics.risksVeryHigh)} muy altos`
+              : null
+          }
+          delta={delta(latest.metrics.risksOpen, previous?.metrics.risksOpen ?? null)}
+        />
+        <KpiCard
+          label="Mejoras abiertas"
+          value={formatInt(latest.metrics.improvementsOpen)}
+          delta={delta(latest.metrics.improvementsOpen, previous?.metrics.improvementsOpen ?? null)}
         />
       </div>
 
-      <Section title="Evolución de alertas">
+      <Section title="Alertas">
         <AlertChart
           points={chronological.map((report) => ({
             label: report.label,
@@ -114,25 +101,42 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
         />
       </Section>
 
-      <Section title="Vulnerabilidades abiertas">
-        <VulnChart
+      <Section title="Riesgos y mejoras">
+        <RiskChart
           points={chronological.map((report) => ({
             label: report.label,
-            criticas: report.metrics.vulnsOpen?.critical ?? null,
-            altas: report.metrics.vulnsOpen?.high ?? null,
+            riesgos: report.metrics.risksOpen,
+            mejoras: report.metrics.improvementsOpen,
           }))}
         />
+        <p className="mt-4 text-sm">
+          <Link href="/riesgos" className="text-accent">
+            Ver riesgos y mejoras
+          </Link>
+        </p>
       </Section>
 
-      {openCases.length > 0 ? (
-        <Section title="Casos que siguen abiertos">
-          <CaseList items={openCases} />
+      {openVulns.length > 0 ? (
+        <Section title="Vulnerabilidades">
+          <VulnTable items={openVulns} showMonths />
         </Section>
       ) : null}
 
-      {openVulns.length > 0 ? (
-        <Section title="Vulnerabilidades a seguir">
-          <VulnTable items={openVulns} showMonths />
+      {openRisks.length > 0 ? (
+        <Section title="Riesgos abiertos">
+          <PortfolioTable items={openRisks} />
+        </Section>
+      ) : null}
+
+      {openImprovements.length > 0 ? (
+        <Section title="Mejoras abiertas">
+          <PortfolioTable items={openImprovements} />
+        </Section>
+      ) : null}
+
+      {openCases.length > 0 ? (
+        <Section title="Casos abiertos">
+          <CaseList items={openCases} />
         </Section>
       ) : null}
 
@@ -142,7 +146,7 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
         </Section>
       ) : null}
 
-      <Section title="Meses cargados">
+      <Section title="Meses">
         <ul className="flex flex-wrap gap-3 text-sm">
           {reports.map((report) => (
             <li key={report.id}>

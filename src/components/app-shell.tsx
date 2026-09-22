@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { logout } from "@/app/acceso/actions";
 
 const links = [
   { href: "/", label: "Panel" },
   { href: "/soc", label: "SOC" },
   { href: "/vulnerabilidades", label: "Vulnerabilidades" },
+  { href: "/riesgos", label: "Riesgos y mejoras" },
   { href: "/vigilancia", label: "Vigilancia digital" },
+  { href: "/registrar", label: "Registrar mes" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -18,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-full lg:grid lg:grid-cols-[240px_1fr]">
       <aside className="border-b border-line bg-sunken lg:min-h-full lg:border-r lg:border-b-0">
         <div className="flex items-center gap-3 px-5 py-5">
-          <span className="grid h-8 w-8 place-items-center bg-accent font-mono text-sm font-semibold text-sunken">
+          <span className="grid h-8 w-8 place-items-center bg-accent font-mono text-sm font-semibold text-[#1c1408]">
             K
           </span>
           <span>
@@ -48,10 +51,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <p className="hidden px-6 pt-8 text-xs leading-5 text-faint lg:block">
-          Cifras, casos y acciones de los informes mensuales. El texto genérico de cada PDF no se guarda.
-        </p>
-        <form action={logout} className="px-3 py-4">
+        <div className="mt-4 space-y-1 px-3 py-4">
+          <ThemeToggle />
+          <form action={logout}>
           <button
             type="submit"
             className="w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-raised hover:text-foreground"
@@ -59,8 +61,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Salir
           </button>
         </form>
+        </div>
       </aside>
       <div className="min-w-0">{children}</div>
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const [light, setLight] = useState(false);
+
+  useEffect(() => {
+    setLight(document.documentElement.getAttribute("data-theme") === "light");
+  }, []);
+
+  function toggle() {
+    const next = !light;
+    if (next) document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    localStorage.setItem("soc-theme", next ? "light" : "dark");
+    setLight(next);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-raised hover:text-foreground"
+    >
+      {light ? "Modo oscuro" : "Modo claro"}
+    </button>
   );
 }

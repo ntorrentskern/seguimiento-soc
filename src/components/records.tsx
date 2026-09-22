@@ -6,6 +6,7 @@ import type {
   CaseView,
   CategoryView,
   FindingView,
+  PortfolioItemView,
   VulnView,
 } from "@/lib/types";
 
@@ -106,7 +107,7 @@ export function VulnTable({
 }) {
   const sorted = sortVulns(items);
   if (sorted.length === 0) {
-    return <p className="text-sm text-muted">No hay vulnerabilidades individualizadas en este corte.</p>;
+    return <p className="text-sm text-muted">Sin vulnerabilidades.</p>;
   }
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
@@ -142,6 +143,48 @@ export function VulnTable({
                 </td>
               ) : null}
               <td className="px-3 py-3 text-muted">{item.action ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const portfolioSeverityLabel: Record<string, string> = {
+  critical: "Crítica",
+  "very-high": "Muy alta",
+  high: "Alta",
+  medium: "Media",
+  low: "Baja",
+};
+
+export function PortfolioTable({ items }: { items: PortfolioItemView[] }) {
+  if (items.length === 0) return <p className="text-sm text-muted">Sin registros.</p>;
+  const showSeverity = items.some((item) => item.severity);
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line">
+      <table className="w-full min-w-[640px] text-left text-sm">
+        <caption className="sr-only">Riesgos y mejoras</caption>
+        <thead className="bg-sunken text-xs tracking-wide text-faint uppercase">
+          <tr>
+            <th className="px-3 py-3 font-medium">Título</th>
+            {showSeverity ? <th className="px-3 py-3 font-medium">Severidad</th> : null}
+            <th className="px-3 py-3 font-medium">Estado</th>
+            <th className="px-3 py-3 font-medium">Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-t border-line align-top">
+              <td className="px-3 py-3 font-medium">{item.title}</td>
+              {showSeverity ? (
+                <td className="px-3 py-3 text-muted">
+                  {item.severity ? (portfolioSeverityLabel[item.severity] ?? item.severity) : "—"}
+                </td>
+              ) : null}
+              <td className="px-3 py-3 text-muted">{item.status === "open" ? "Abierto" : "Resuelto"}</td>
+              <td className="px-3 py-3 text-muted">{item.detail ?? "—"}</td>
             </tr>
           ))}
         </tbody>

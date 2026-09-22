@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AlertChart, VulnChart } from "@/components/charts";
+import { AlertChart, RiskChart } from "@/components/charts";
 import { MonthLink } from "@/components/records";
 import { DataState, PageHeader, Section } from "@/components/ui";
 import { loadSoc } from "@/db/queries";
@@ -12,19 +12,9 @@ export default async function SocPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="SOC"
-        title="Evolución mensual"
-        description="Cada fila es un informe. Entra en el mes para ver los casos, las vulnerabilidades y las acciones de ese corte."
-      />
+      <PageHeader title="SOC" />
       {soc.status !== "ok" ? (
-        <DataState title="Sin serie mensual todavía">
-          {soc.status === "unconfigured"
-            ? "Conecta Neon para guardar los meses del SOC."
-            : soc.status === "error"
-              ? "No se ha podido leer la base de datos."
-              : "Cuando se carguen los informes, esta tabla comparará alertas, falsos positivos, respuestas pendientes y vulnerabilidades críticas."}
-        </DataState>
+        <DataState title={soc.status === "empty" ? "Sin informes" : "Sin conexión con la base de datos"} />
       ) : (
         <>
           <Section title="Alertas">
@@ -37,12 +27,12 @@ export default async function SocPage() {
               }))}
             />
           </Section>
-          <Section title="Vulnerabilidades abiertas">
-            <VulnChart
+          <Section title="Riesgos y mejoras">
+            <RiskChart
               points={[...soc.data].reverse().map((report) => ({
                 label: report.label,
-                criticas: report.metrics.vulnsOpen?.critical ?? null,
-                altas: report.metrics.vulnsOpen?.high ?? null,
+                riesgos: report.metrics.risksOpen,
+                mejoras: report.metrics.improvementsOpen,
               }))}
             />
           </Section>
@@ -56,7 +46,8 @@ export default async function SocPage() {
                   <th className="px-3 py-3 font-medium">Escaladas</th>
                   <th className="px-3 py-3 font-medium">Falsos positivos</th>
                   <th className="px-3 py-3 font-medium">Sin respuesta</th>
-                  <th className="px-3 py-3 font-medium">Críticas abiertas</th>
+                  <th className="px-3 py-3 font-medium">Riesgos</th>
+                  <th className="px-3 py-3 font-medium">Mejoras</th>
                 </tr>
               </thead>
               <tbody>
@@ -74,9 +65,8 @@ export default async function SocPage() {
                         {fp ? <span className="ml-2 text-xs text-faint">{fp}</span> : null}
                       </td>
                       <td className="px-3 py-3 font-mono tabular-nums">{formatInt(report.metrics.alertsUnanswered)}</td>
-                      <td className="px-3 py-3 font-mono tabular-nums">
-                        {formatInt(report.metrics.vulnsOpen?.critical ?? null)}
-                      </td>
+                      <td className="px-3 py-3 font-mono tabular-nums">{formatInt(report.metrics.risksOpen)}</td>
+                      <td className="px-3 py-3 font-mono tabular-nums">{formatInt(report.metrics.improvementsOpen)}</td>
                     </tr>
                   );
                 })}

@@ -19,6 +19,25 @@
   color-scheme: dark;
 }
 
+[data-theme="light"] {
+  --background: #f4f1ea;
+  --foreground: #1a2330;
+  --raised: #fffcf7;
+  --sunken: #e7e1d6;
+  --line: #d3cbbd;
+  --muted: #4e5d6e;
+  --faint: #6d7c8c;
+  --accent: #8a5a10;
+  --critical: #b42318;
+  --high: #b45309;
+  --medium: #8a6d12;
+  --low: #1d5f8a;
+  --good: #0f7a4b;
+  --bad: #b42318;
+  --info: #1d4f91;
+  color-scheme: light;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
