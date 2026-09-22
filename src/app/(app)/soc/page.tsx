@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AlertChart, RiskChart } from "@/components/charts";
 import { MonthLink } from "@/components/records";
 import { DataState, PageHeader, Section } from "@/components/ui";
@@ -57,6 +58,9 @@ export default async function SocPage() {
                     <tr key={report.id} className="border-t border-line">
                       <td className="px-3 py-3">
                         <MonthLink id={report.id} label={report.label} />
+                        <Link href={`/registrar?mes=${report.id}`} className="ml-3 text-accent">
+                          Editar
+                        </Link>
                       </td>
                       <td className="px-3 py-3 font-mono tabular-nums">{formatInt(report.metrics.alertsGenerated)}</td>
                       <td className="px-3 py-3 font-mono tabular-nums">{formatInt(report.metrics.alertsEscalated)}</td>

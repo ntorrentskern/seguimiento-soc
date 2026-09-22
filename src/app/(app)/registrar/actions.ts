@@ -1,12 +1,12 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/app/acceso/actions";
 import { getDb } from "@/db/index";
-import { portfolioItems, reports, socSnapshots, vulnerabilities } from "@/db/schema";
+import { alertCategories, portfolioItems, reports, socSnapshots, vulnerabilities } from "@/db/schema";
 
 const MONTHS = [
   "Enero",
@@ -82,6 +82,14 @@ export async function saveMonth(formData: FormData) {
     await db.insert(socSnapshots).values({ reportId: id, ...metrics });
   }
 
+  const categoryNames = formData.getAll("categoryName");
+  const categories = categoryNames.flatMap((entry, index) => {
+    const name = text(entry);
+    const count = integer(formData.getAll("categoryCount")[index] ?? null);
+    if (!name || count == null) return [];
+    return [{ name, count }];
+  });
+
   const titles = formData.getAll("vulnTitle");
   const vulns = titles.flatMap((title, index) => {
     const name = text(title);
@@ -91,17 +99,11 @@ export async function saveMonth(formData: FormData) {
     const status = text(formData.getAll("vulnStatus")[index]);
     return [
       {
-        id: randomUUID(),
-        reportId: id,
         fingerprint,
         title: name,
         asset: text(formData.getAll("vulnAsset")[index]),
         severity: severity && severity !== "very-high" && SEVERITIES.has(severity) ? severity : "high",
         status: status && VULN_STATUS.has(status) ? status : "open",
-        action: null,
-        cve: null,
-        cvss: null,
-        ageDays: null,
       },
     ];
   });
@@ -110,26 +112,115 @@ export async function saveMonth(formData: FormData) {
   const items = itemTitles.flatMap((title, index) => {
     const name = text(title);
     if (!name) return [];
-    const kind = text(formData.getAll("itemKind")[index]);
+    const kind = text(formData.getAll("itemKind")[index]) === "improvement" ? "improvement" : "risk";
     const severity = text(formData.getAll("itemSeverity")[index]);
     const status = text(formData.getAll("itemStatus")[index]);
     return [
       {
-        id: randomUUID(),
-        reportId: id,
-        kind: kind === "improvement" ? "improvement" : "risk",
+        kind,
+        fingerprint: text(formData.getAll("itemFingerprint")[index]) || `${kind}:${slug(name)}`,
         title: name,
-        severity: severity && SEVERITIES.has(severity) ? severity : "medium",
+        severity: severity && SEVERITIES.has(severity) ? severity : "",
         status: status && ITEM_STATUS.has(status) ? status : "open",
         detail: text(formData.getAll("itemDetail")[index]),
       },
     ];
   });
 
+  const [previousVulns, previousItems] = await Promise.all([
+    db.select({ fingerprint: vulnerabilities.fingerprint }).from(vulnerabilities).where(eq(vulnerabilities.reportId, id)),
+    db.select({ kind: portfolioItems.kind, title: portfolioItems.title }).from(portfolioItems).where(eq(portfolioItems.reportId, id)),
+  ]);
+
+  const later = await db
+    .select({ id: reports.id })
+    .from(reports)
+    .where(and(eq(reports.service, "soc"), gt(reports.periodStart, periodStart)))
+    .orderBy(asc(reports.periodStart));
+
+  const knownVulns = new Set<string>();
+  const knownItems = new Set<string>();
+  const laterVulnStatus = new Map<string, { status: string; title: string }>();
+  const laterItemStatus = new Map<string, { status: string; title: string }>();
+  for (const report of later) {
+    const [vulnRows, itemRows] = await Promise.all([
+      db
+        .select({ fingerprint: vulnerabilities.fingerprint, status: vulnerabilities.status, title: vulnerabilities.title })
+        .from(vulnerabilities)
+        .where(eq(vulnerabilities.reportId, report.id)),
+      db
+        .select({ kind: portfolioItems.kind, title: portfolioItems.title, status: portfolioItems.status })
+        .from(portfolioItems)
+        .where(eq(portfolioItems.reportId, report.id)),
+    ]);
+    for (const row of vulnRows) {
+      knownVulns.add(row.fingerprint);
+      if (!laterVulnStatus.has(row.fingerprint)) laterVulnStatus.set(row.fingerprint, { status: row.status, title: row.title });
+    }
+    for (const row of itemRows) {
+      const key = `${row.kind}:${slug(row.title)}`;
+      knownItems.add(key);
+      if (!laterItemStatus.has(key)) laterItemStatus.set(key, { status: row.status, title: row.title });
+    }
+  }
+
+  const ownVulns = new Set(previousVulns.map((item) => item.fingerprint));
+  const ownItems = new Set(previousItems.map((item) => `${item.kind}:${slug(item.title)}`));
+  const vulnsToStore = vulns.filter((item) => changedFromLater(item.fingerprint, item.status, item.title, ownVulns, knownVulns, laterVulnStatus));
+  const itemsToStore = items.filter((item) => changedFromLater(item.fingerprint, item.status, item.title, ownItems, knownItems, laterItemStatus));
+  const removedVulns = new Set([...ownVulns].filter((fingerprint) => !vulns.some((item) => item.fingerprint === fingerprint)));
+  const removedItems = new Set([...ownItems].filter((fingerprint) => !items.some((item) => item.fingerprint === fingerprint)));
+
+  await db.delete(alertCategories).where(eq(alertCategories.reportId, id));
   await db.delete(vulnerabilities).where(eq(vulnerabilities.reportId, id));
   await db.delete(portfolioItems).where(eq(portfolioItems.reportId, id));
-  if (vulns.length > 0) await db.insert(vulnerabilities).values(vulns);
-  if (items.length > 0) await db.insert(portfolioItems).values(items);
+  if (categories.length > 0) {
+    await db.insert(alertCategories).values(
+      categories.map((category, index) => ({
+        id: `${id}-cat-${index + 1}`,
+        reportId: id,
+        name: category.name,
+        generated: category.count,
+        escalated: category.count,
+      })),
+    );
+  }
+  if (vulnsToStore.length > 0) {
+    await db.insert(vulnerabilities).values(
+      vulnsToStore.map((item) => ({
+        id: randomUUID(),
+        reportId: id,
+        fingerprint: item.fingerprint,
+        title: item.title,
+        asset: item.asset,
+        severity: item.severity,
+        status: item.status,
+        action: null,
+        cve: null,
+        cvss: null,
+        ageDays: null,
+      })),
+    );
+  }
+  if (itemsToStore.length > 0) {
+    await db.insert(portfolioItems).values(
+      itemsToStore.map((item) => ({
+        id: randomUUID(),
+        reportId: id,
+        kind: item.kind,
+        title: item.title,
+        severity: item.severity,
+        status: item.status,
+        detail: item.detail,
+      })),
+    );
+  }
+
+  for (const report of later) {
+    await applyVulnsForward(db, report.id, vulns, removedVulns, knownVulns);
+    await applyItemsForward(db, report.id, items, removedItems, knownItems);
+    revalidatePath(`/soc/${report.id}`);
+  }
 
   revalidatePath("/");
   revalidatePath("/soc");
@@ -137,7 +228,100 @@ export async function saveMonth(formData: FormData) {
   revalidatePath("/vulnerabilidades");
   revalidatePath("/riesgos");
   revalidatePath("/registrar");
-  redirect("/registrar?ok=1");
+  redirect(`/registrar?ok=1&mes=${id}`);
+}
+
+async function applyVulnsForward(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  reportId: string,
+  vulns: { fingerprint: string; title: string; asset: string | null; severity: string; status: string }[],
+  removed: Set<string>,
+  knownLater: Set<string>,
+) {
+  const current = await db.select().from(vulnerabilities).where(eq(vulnerabilities.reportId, reportId));
+  for (const vuln of vulns) {
+    const match = current.find((item) => item.fingerprint === vuln.fingerprint);
+    if (match) {
+      await db.update(vulnerabilities).set({
+        title: vuln.title,
+        asset: vuln.asset,
+        severity: vuln.severity,
+        status: vuln.status,
+      }).where(eq(vulnerabilities.id, match.id));
+    } else if (!knownLater.has(vuln.fingerprint)) {
+      await db.insert(vulnerabilities).values({
+        id: randomUUID(),
+        reportId,
+        fingerprint: vuln.fingerprint,
+        title: vuln.title,
+        asset: vuln.asset,
+        severity: vuln.severity,
+        status: vuln.status,
+        action: null,
+        cve: null,
+        cvss: null,
+        ageDays: null,
+      });
+    }
+  }
+  for (const fingerprint of removed) {
+    await db.delete(vulnerabilities).where(and(eq(vulnerabilities.reportId, reportId), eq(vulnerabilities.fingerprint, fingerprint)));
+  }
+}
+
+async function applyItemsForward(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  reportId: string,
+  items: { kind: string; fingerprint: string; title: string; severity: string; status: string; detail: string | null }[],
+  removed: Set<string>,
+  knownLater: Set<string>,
+) {
+  const current = await db.select().from(portfolioItems).where(eq(portfolioItems.reportId, reportId));
+  for (const item of items) {
+    const match = current.find((row) => `${row.kind}:${slug(row.title)}` === item.fingerprint);
+    if (match) {
+      await db.update(portfolioItems).set({
+        kind: item.kind,
+        title: item.title,
+        severity: item.severity,
+        status: item.status,
+        detail: item.detail,
+      }).where(eq(portfolioItems.id, match.id));
+    } else if (!knownLater.has(item.fingerprint)) {
+      await db.insert(portfolioItems).values({
+        id: randomUUID(),
+        reportId,
+        kind: item.kind,
+        title: item.title,
+        severity: item.severity,
+        status: item.status,
+        detail: item.detail,
+      });
+    }
+  }
+  for (const fingerprint of removed) {
+    const match = current.find((row) => `${row.kind}:${slug(row.title)}` === fingerprint);
+    if (match) await db.delete(portfolioItems).where(eq(portfolioItems.id, match.id));
+  }
+  const fresh = await db.select().from(portfolioItems).where(eq(portfolioItems.reportId, reportId));
+  if (fresh.length === 0) return;
+  await db.update(socSnapshots).set({
+    risksOpen: fresh.filter((item) => item.kind === "risk" && item.status === "open").length,
+    improvementsOpen: fresh.filter((item) => item.kind === "improvement" && item.status === "open").length,
+  }).where(eq(socSnapshots.reportId, reportId));
+}
+
+function changedFromLater(
+  fingerprint: string,
+  status: string,
+  title: string,
+  own: Set<string>,
+  knownLater: Set<string>,
+  laterStatus: Map<string, { status: string; title: string }>,
+) {
+  if (own.has(fingerprint) || !knownLater.has(fingerprint)) return true;
+  const laterItem = laterStatus.get(fingerprint);
+  return !laterItem || laterItem.status !== status || laterItem.title !== title;
 }
 
 function text(value: FormDataEntryValue | undefined | null) {

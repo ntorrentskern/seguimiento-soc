@@ -75,6 +75,7 @@ export type PortfolioStatus = "open" | "resolved";
 export type PortfolioItemView = {
   id: string;
   kind: PortfolioKind;
+  fingerprint: string;
   title: string;
   severity: string;
   status: PortfolioStatus;

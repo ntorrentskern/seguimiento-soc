@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActionList, CaseList, CategoryBars, PortfolioTable, VulnTable } from "@/components/records";
+import { CaseList, CategoryBars, PortfolioTable, VulnTable } from "@/components/records";
 import { KpiCard, PageHeader, Section } from "@/components/ui";
 import { loadSoc } from "@/db/queries";
 import { delta, formatDate, formatHours, formatInt, formatPct, severityLabel } from "@/lib/format";
@@ -33,11 +33,16 @@ export default async function SocMonthPage({
 
   return (
     <>
-      <p className="mb-4 text-sm">
-        <Link href="/soc" className="text-muted hover:text-foreground">
-          SOC
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <p className="text-sm">
+          <Link href="/soc" className="text-muted hover:text-foreground">
+            SOC
+          </Link>
+        </p>
+        <Link href={`/registrar?mes=${report.id}`} className="rounded-md border border-line px-3 py-1.5 text-sm">
+          Editar
         </Link>
-      </p>
+      </div>
       <PageHeader
         eyebrow={`${formatDate(report.periodStart)} – ${formatDate(report.periodEnd)}`}
         title={report.label}
@@ -115,12 +120,6 @@ export default async function SocMonthPage({
           </div>
         ) : null}
       </Section>
-
-      {report.actions.length > 0 ? (
-        <Section title="Acciones">
-          <ActionList items={report.actions} />
-        </Section>
-      ) : null}
     </>
   );
 }

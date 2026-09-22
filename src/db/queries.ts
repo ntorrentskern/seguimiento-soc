@@ -253,9 +253,11 @@ function toVuln(row: typeof vulnerabilities.$inferSelect): VulnView {
 }
 
 function toPortfolio(row: typeof portfolioItems.$inferSelect): PortfolioItemView {
+  const kind = row.kind === "improvement" ? "improvement" : "risk";
   return {
     id: row.id,
-    kind: row.kind === "improvement" ? "improvement" : "risk",
+    kind,
+    fingerprint: `${kind}:${slugKey(row.title)}`,
     title: row.title,
     severity: row.severity,
     status: row.status === "resolved" ? "resolved" : "open",
@@ -283,6 +285,16 @@ function toFinding(row: typeof vigilanciaFindings.$inferSelect): FindingView {
     status: row.status,
     detail: row.detail,
   };
+}
+
+function slugKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
 }
 
 function asSeverityLevel(value: string): Severity {

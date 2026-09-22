@@ -13,10 +13,16 @@ export type VulnDraft = {
 
 export type ItemDraft = {
   kind: "risk" | "improvement";
+  fingerprint: string;
   title: string;
   severity: string;
   status: string;
   detail: string;
+};
+
+export type CategoryDraft = {
+  name: string;
+  count: string;
 };
 
 export type MonthDraft = {
@@ -33,6 +39,7 @@ export type MonthDraft = {
   risksVeryHigh: string;
   improvementsOpen: string;
   note: string;
+  categories: CategoryDraft[];
   vulns: VulnDraft[];
   items: ItemDraft[];
 };
@@ -43,15 +50,17 @@ const fieldClass =
 export function MonthForm({
   drafts,
   next,
+  initialKey,
   saved,
   error,
 }: {
   drafts: MonthDraft[];
   next: MonthDraft;
+  initialKey: string;
   saved: boolean;
   error: string | null;
 }) {
-  const [selected, setSelected] = useState(next.key);
+  const [selected, setSelected] = useState(initialKey);
   const current = selected === next.key ? next : (drafts.find((draft) => draft.key === selected) ?? next);
 
   return (
@@ -79,8 +88,10 @@ export function MonthForm({
 }
 
 function Editor({ draft }: { draft: MonthDraft }) {
+  const [categories, setCategories] = useState(draft.categories);
   const [vulns, setVulns] = useState(draft.vulns);
   const [items, setItems] = useState(draft.items);
+  const categoryTotal = categories.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
 
   return (
     <form action={saveMonth} className="space-y-10">
@@ -103,6 +114,51 @@ function Editor({ draft }: { draft: MonthDraft }) {
           Nota del mes
           <input name="note" defaultValue={draft.note} className={fieldClass} />
         </label>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Tipos de alerta</h2>
+          <button
+            type="button"
+            className="rounded-md border border-line px-3 py-1.5 text-sm"
+            onClick={() => setCategories((rows) => [...rows, { name: "", count: "" }])}
+          >
+            Añadir tipo
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-muted">Suma: {categoryTotal}</p>
+        <div className="mt-4 space-y-3">
+          {categories.map((row, index) => (
+            <div key={`${row.name}-${index}`} className="grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-[1fr_8rem_auto]">
+              <input
+                name="categoryName"
+                value={row.name}
+                aria-label="Tipo de alerta"
+                placeholder="XDR, administración, firewall…"
+                onChange={(event) => updateCategory(setCategories, index, { name: event.target.value })}
+                className="rounded-md border border-line bg-sunken px-3 py-2 text-sm"
+              />
+              <input
+                name="categoryCount"
+                type="number"
+                min={0}
+                value={row.count}
+                aria-label="Cantidad"
+                placeholder="Cantidad"
+                onChange={(event) => updateCategory(setCategories, index, { count: event.target.value })}
+                className="rounded-md border border-line bg-sunken px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                className="px-2 text-sm text-muted"
+                onClick={() => setCategories((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section>
@@ -181,7 +237,7 @@ function Editor({ draft }: { draft: MonthDraft }) {
               onClick={() =>
                 setItems((rows) => [
                   ...rows,
-                  { kind: "risk", title: "", severity: "high", status: "open", detail: "" },
+                  { kind: "risk", fingerprint: "", title: "", severity: "", status: "open", detail: "" },
                 ])
               }
             >
@@ -193,7 +249,7 @@ function Editor({ draft }: { draft: MonthDraft }) {
               onClick={() =>
                 setItems((rows) => [
                   ...rows,
-                  { kind: "improvement", title: "", severity: "medium", status: "open", detail: "" },
+                  { kind: "improvement", fingerprint: "", title: "", severity: "", status: "open", detail: "" },
                 ])
               }
             >
@@ -205,6 +261,7 @@ function Editor({ draft }: { draft: MonthDraft }) {
           {items.map((row, index) => (
             <div key={`${row.kind}-${index}`} className="grid gap-2 rounded-xl border border-line p-3 md:grid-cols-[0.7fr_1.4fr_0.7fr_0.7fr_1fr_auto]">
               <input type="hidden" name="itemKind" value={row.kind} />
+              <input type="hidden" name="itemFingerprint" value={row.fingerprint} />
               <p className="self-center text-sm text-muted">{row.kind === "risk" ? "Riesgo" : "Mejora"}</p>
               <input
                 name="itemTitle"
@@ -218,6 +275,7 @@ function Editor({ draft }: { draft: MonthDraft }) {
                 name="itemSeverity"
                 value={row.severity}
                 allowVeryHigh
+                allowEmpty
                 onChange={(severity) => updateItem(setItems, index, { severity })}
               />
               <select
@@ -278,11 +336,13 @@ function SeveritySelect({
   name,
   value,
   allowVeryHigh,
+  allowEmpty = false,
   onChange,
 }: {
   name: string;
   value: string;
   allowVeryHigh: boolean;
+  allowEmpty?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -293,6 +353,7 @@ function SeveritySelect({
       onChange={(event) => onChange(event.target.value)}
       className="rounded-md border border-line bg-sunken px-3 py-2 text-sm"
     >
+      {allowEmpty ? <option value="">Sin clasificar</option> : null}
       <option value="critical">Crítica</option>
       {allowVeryHigh ? <option value="very-high">Muy alta</option> : null}
       <option value="high">Alta</option>
@@ -300,6 +361,14 @@ function SeveritySelect({
       <option value="low">Baja</option>
     </select>
   );
+}
+
+function updateCategory(
+  setCategories: React.Dispatch<React.SetStateAction<CategoryDraft[]>>,
+  index: number,
+  patch: Partial<CategoryDraft>,
+) {
+  setCategories((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
 }
 
 function updateVuln(

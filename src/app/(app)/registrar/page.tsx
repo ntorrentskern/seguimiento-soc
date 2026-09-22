@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MonthForm, type ItemDraft, type MonthDraft, type VulnDraft } from "@/components/month-form";
+import { MonthForm, type CategoryDraft, type ItemDraft, type MonthDraft, type VulnDraft } from "@/components/month-form";
 import { PageHeader } from "@/components/ui";
 import { loadSoc } from "@/db/queries";
 import type { SocView } from "@/lib/types";
@@ -24,13 +24,14 @@ const MONTHS = [
 export default async function RegistrarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; mes?: string }>;
 }) {
   const params = await searchParams;
   const soc = await loadSoc();
   const reports = soc.status === "ok" ? soc.data : [];
-  const drafts = reports.map(toDraft);
+  const drafts = reports.map((report) => toDraft(report, reports));
   const next = nextDraft(reports[0] ?? null);
+  const initialKey = params.mes && drafts.some((draft) => draft.key === params.mes) ? params.mes : next.key;
 
   return (
     <>
@@ -38,6 +39,7 @@ export default async function RegistrarPage({
       <MonthForm
         drafts={drafts}
         next={next}
+        initialKey={initialKey}
         saved={params.ok === "1"}
         error={params.error === "config" ? "Sin conexión con la base de datos." : params.error ? "Revisa el mes." : null}
       />
@@ -45,8 +47,9 @@ export default async function RegistrarPage({
   );
 }
 
-function toDraft(report: SocView): MonthDraft {
+function toDraft(report: SocView, reports: SocView[]): MonthDraft {
   const [year, month] = report.periodStart.split("-").map(Number);
+  const carried = carryFromLater(report, reports);
   return {
     key: report.id,
     label: report.label,
@@ -61,8 +64,9 @@ function toDraft(report: SocView): MonthDraft {
     risksVeryHigh: field(report.metrics.risksVeryHigh),
     improvementsOpen: field(report.metrics.improvementsOpen),
     note: report.headline === report.label ? "" : report.headline,
-    vulns: report.vulnerabilities.map(toVuln),
-    items: report.portfolio.map(toItem),
+    categories: report.categories.map((item) => ({ name: item.name, count: String(item.generated) })),
+    vulns: mergeVulns(report.vulnerabilities.map(toVuln), carried.vulns),
+    items: mergeItems(report.portfolio.map(toItem), carried.items),
   };
 }
 
@@ -81,6 +85,7 @@ function nextDraft(latest: SocView | null): MonthDraft {
         risksCritical: field(latest.metrics.risksCritical),
         risksVeryHigh: field(latest.metrics.risksVeryHigh),
         improvementsOpen: field(latest.metrics.improvementsOpen),
+        categories: (latest.categories ?? []).map((item) => ({ name: item.name, count: String(item.generated) })),
         vulns: latest.vulnerabilities.filter((item) => item.status === "open").map(toVuln),
         items: latest.portfolio.filter((item) => item.status === "open").map(toItem),
       }
@@ -109,11 +114,42 @@ function toVuln(item: SocView["vulnerabilities"][number]): VulnDraft {
 function toItem(item: SocView["portfolio"][number]): ItemDraft {
   return {
     kind: item.kind,
+    fingerprint: item.fingerprint || `${item.kind}:${slug(item.title)}`,
     title: item.title,
     severity: item.severity,
     status: item.status,
     detail: item.detail ?? "",
   };
+}
+
+function carryFromLater(report: SocView, reports: SocView[]) {
+  const index = reports.findIndex((item) => item.id === report.id);
+  const newer = index > 0 ? [...reports.slice(0, index)].reverse() : [];
+  const source = newer.find((item) => item.vulnerabilities.length > 0 || item.portfolio.length > 0);
+  return {
+    vulns: source?.vulnerabilities.map(toVuln) ?? [],
+    items: source?.portfolio.map(toItem) ?? [],
+  };
+}
+
+function mergeVulns(own: VulnDraft[], later: VulnDraft[]) {
+  const seen = new Set(own.map((item) => item.fingerprint));
+  return [...own, ...later.filter((item) => !seen.has(item.fingerprint))];
+}
+
+function mergeItems(own: ItemDraft[], later: ItemDraft[]) {
+  const seen = new Set(own.map((item) => item.fingerprint));
+  return [...own, ...later.filter((item) => !seen.has(item.fingerprint))];
+}
+
+function slug(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
 }
 
 function emptyCarry() {
@@ -126,6 +162,7 @@ function emptyCarry() {
     risksCritical: "",
     risksVeryHigh: "",
     improvementsOpen: "",
+    categories: [] as CategoryDraft[],
     vulns: [] as VulnDraft[],
     items: [] as ItemDraft[],
   };

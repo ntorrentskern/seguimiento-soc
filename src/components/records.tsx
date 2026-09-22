@@ -52,7 +52,8 @@ export function CategoryBars({ items }: { items: CategoryView[] }) {
           <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-sm">
             <span>{item.name}</span>
             <span className="font-mono text-xs text-muted tabular-nums">
-              {formatInt(item.escalated)} escaladas · {formatInt(item.generated)} generadas
+              {formatInt(item.generated)}
+              {item.escalated !== item.generated ? ` · ${formatInt(item.escalated)} escaladas` : null}
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-sunken">

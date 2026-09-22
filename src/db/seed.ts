@@ -107,8 +107,8 @@ async function main() {
         passwordHash,
       })
       .onConflictDoUpdate({
-        target: users.username,
-        set: { passwordHash },
+        target: users.id,
+        set: { username, passwordHash },
       });
     console.log(`Usuario ${username} listo`);
   }

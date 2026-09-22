@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertChart, RiskChart } from "@/components/charts";
-import { ActionList, CaseList, MonthLink, PortfolioTable, VulnTable } from "@/components/records";
+import { CaseList, MonthLink, PortfolioTable, VulnTable } from "@/components/records";
 import { DataState, KpiCard, PageHeader, Section } from "@/components/ui";
 import { loadSoc, loadVigilancia } from "@/db/queries";
 import { delta, formatInt, formatPct } from "@/lib/format";
@@ -52,7 +52,6 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
   const openImprovements = latest.portfolio.filter(
     (item) => item.kind === "improvement" && item.status === "open",
   );
-  const pending = latest.actions.filter((item) => item.status !== "done");
   const escalatedShare = formatPct(latest.metrics.alertsEscalated, latest.metrics.alertsGenerated);
 
   return (
@@ -137,12 +136,6 @@ function SocBriefing({ reports }: { reports: SocView[] }) {
       {openCases.length > 0 ? (
         <Section title="Casos abiertos">
           <CaseList items={openCases} />
-        </Section>
-      ) : null}
-
-      {pending.length > 0 ? (
-        <Section title="Acciones pendientes">
-          <ActionList items={pending} />
         </Section>
       ) : null}
 
