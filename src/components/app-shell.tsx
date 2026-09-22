@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/acceso/actions";
 
 const links = [
   { href: "/", label: "Panel" },
@@ -50,6 +51,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <p className="hidden px-6 pt-8 text-xs leading-5 text-faint lg:block">
           Cifras, casos y acciones de los informes mensuales. El texto genérico de cada PDF no se guarda.
         </p>
+        <form action={logout} className="px-3 py-4">
+          <button
+            type="submit"
+            className="w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-raised hover:text-foreground"
+          >
+            Salir
+          </button>
+        </form>
       </aside>
       <div className="min-w-0">{children}</div>
     </div>

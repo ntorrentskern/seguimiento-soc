@@ -13,4 +13,6 @@ npm run dev
 
 La base de datos es Neon (`DATABASE_URL`). El esquema se aplica con `npm run db:push`. Los meses se cargan desde `data/soc.json` (no se sube a git) con `npm run db:seed`.
 
+El acceso es obligatorio en `/acceso`. Variables locales en `.env.local`: `DATABASE_URL`, `AUTH_SECRET`, `APP_USERNAME`, `APP_PASSWORD_HASH`.
+
 El proyecto de Vercel ya tiene protección de acceso del equipo.

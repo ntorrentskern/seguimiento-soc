@@ -8,6 +8,7 @@ import {
   cases,
   reports,
   socSnapshots,
+  users,
   vulnerabilities,
 } from "@/db/schema";
 import type { SeverityCounts } from "@/lib/types";
@@ -80,6 +81,23 @@ async function main() {
   const db = getDb();
   if (!db) {
     throw new Error("Falta DATABASE_URL o POSTGRES_URL.");
+  }
+
+  const username = process.env.APP_USERNAME?.trim();
+  const passwordHash = process.env.APP_PASSWORD_HASH?.trim();
+  if (username && passwordHash) {
+    await db
+      .insert(users)
+      .values({
+        id: "user-equipo",
+        username,
+        passwordHash,
+      })
+      .onConflictDoUpdate({
+        target: users.username,
+        set: { passwordHash },
+      });
+    console.log(`Usuario ${username} listo`);
   }
 
   const soc = await readJson<SocImport[]>("data/soc.json");

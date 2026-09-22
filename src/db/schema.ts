@@ -11,6 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 import type { SeverityCounts } from "@/lib/types";
 
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const reports = pgTable("reports", {
   id: text("id").primaryKey(),
   service: text("service").notNull(),
