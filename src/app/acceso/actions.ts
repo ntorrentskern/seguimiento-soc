@@ -9,7 +9,15 @@ import { readSession, sessionCookieName, sessionMaxAge, signSession } from "@/li
 export async function login(formData: FormData) {
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const user = username ? await findUser(username) : null;
+
+  let user = null;
+  try {
+    user = username ? await findUser(username) : null;
+  } catch (error) {
+    console.error("Login DB error", error);
+    redirect("/acceso?error=config");
+  }
+
   const valid = user ? verifyPassword(password, user.passwordHash) : false;
 
   if (!user || !valid) {
